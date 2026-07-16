@@ -1,12 +1,28 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import axios from 'axios'
 
 // Variables de estado
+const platform = ref('instagram') // Por defecto inicia en TikTok
 const videoUrlInput = ref('')
 const cleanVideoUrl = ref(null)
 const videoTitle = ref('')
 const isLoading = ref(false)
+
+// Textos dinámicos según la plataforma elegida
+const inputPlaceholder = computed(() => {
+  return platform.value === 'instagram'
+    ? 'https://www.instagram.com/reel/C123456789/'
+    : 'https://www.tiktok.com/@usuario/video/123456789'
+})
+
+// Función para alternar la plataforma
+const togglePlatform = (selected) => {
+  platform.value = selected
+  // Limpiamos los campos al cambiar de red social
+  videoUrlInput.value = ''
+  cleanVideoUrl.value = null
+}
 
 // Función para obtener el enlace
 const fetchVideo = async () => {
@@ -14,17 +30,21 @@ const fetchVideo = async () => {
 
   isLoading.value = true
   try {
-    const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/tiktok/convert`, {
-      url: videoUrlInput.value,
-    })
+    // Usamos platform.value para dirigir la petición al endpoint correcto (/api/tiktok/convert o /api/instagram/convert)
+    const response = await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/${platform.value}/convert`,
+      {
+        url: videoUrlInput.value,
+      },
+    )
 
     cleanVideoUrl.value = response.data.video_url
-    videoTitle.value = response.data.title || 'tiktok-video'
+    videoTitle.value = response.data.title || `${platform.value}-video`
 
     triggerDownload() // Llamar a la función para forzar la descarga
   } catch (error) {
     console.error(error)
-    alert('Error al procesar el video')
+    alert(`Error al procesar el video de ${platform.value === 'tiktok' ? 'TikTok' : 'Instagram'}`)
   } finally {
     isLoading.value = false
   }
@@ -35,7 +55,9 @@ const triggerDownload = () => {
   if (!cleanVideoUrl.value) return
   const safeUrl = encodeURIComponent(cleanVideoUrl.value)
   const safeTitle = encodeURIComponent(videoTitle.value)
-  window.location.href = `${import.meta.env.VITE_API_URL}/api/tiktok/download?url=${safeUrl}&title=${safeTitle}`
+
+  // Usamos platform.value para el proxy de descarga
+  window.location.href = `${import.meta.env.VITE_API_URL}/api/${platform.value}/download?url=${safeUrl}&title=${safeTitle}`
 }
 </script>
 
@@ -56,14 +78,34 @@ const triggerDownload = () => {
     <main class="main-content">
       <!-- Tarjeta del Buscador Superpuesta -->
       <div class="search-card">
-        <label class="input-label">Pega tu enlace de TikTok</label>
+        <!-- Toggle de Plataformas -->
+        <div class="platform-toggle">
+          <button
+            type="button"
+            :class="['toggle-btn', { active: platform === 'instagram' }]"
+            @click="togglePlatform('instagram')"
+          >
+            Instagram Reels
+          </button>
+          <button
+            type="button"
+            :class="['toggle-btn', { active: platform === 'tiktok' }]"
+            @click="togglePlatform('tiktok')"
+          >
+            TikTok
+          </button>
+        </div>
+
+        <label class="input-label"
+          >Pega tu enlace de {{ platform === 'tiktok' ? 'TikTok' : 'Instagram' }}</label
+        >
 
         <form @submit.prevent="fetchVideo">
           <input
             type="url"
             class="url-input"
             v-model="videoUrlInput"
-            placeholder="https://www.tiktok.com/@usuario/video/123456789"
+            :placeholder="inputPlaceholder"
             required
           />
 
@@ -83,17 +125,19 @@ const triggerDownload = () => {
 
       <!-- Sección de Texto Explicativo -->
       <section class="info-section container">
-        <h1>Descargador de TikTok sin Marca de Agua</h1>
+        <h1>Descargador de videos de TikTok e Instagram sin Marca de Agua</h1>
         <p>
-          VideosNoWatermark es una forma sencilla de descargar videos de TikTok como archivos MP4
-          sin marca de agua. Es gratuito y no requiere registro. Está optimizado para funcionar en
-          todos los dispositivos, ya sea tu computadora, tableta o teléfono móvil.
+          VideosNoWatermark es una forma sencilla de descargar videos de TikTok e Instagram como
+          archivos MP4 sin marca de agua. Es gratuito y no requiere registro. Está optimizado para
+          funcionar en todos los dispositivos, ya sea tu computadora, tableta o teléfono móvil.
         </p>
 
-        <h3>Cómo descargar un video de TikTok</h3>
+        <h3>Cómo descargar un video de {{ platform === 'tiktok' ? 'TikTok' : 'Instagram' }}</h3>
         <ol class="instructions-list">
           <li>
-            <strong>1.</strong> Entra en la app de TikTok y busca el video que quieras descargar.
+            <strong>1.</strong> Entra en la app de
+            {{ platform === 'tiktok' ? 'TikTok' : 'Instagram' }} y busca el video que quieras
+            descargar.
           </li>
           <li><strong>2.</strong> Toca el botón de "Compartir" y selecciona "Copiar enlace".</li>
           <li><strong>3.</strong> Pega el enlace en nuestro descargador que aparece arriba.</li>
@@ -127,7 +171,6 @@ const triggerDownload = () => {
 .dark-header {
   background-color: #1a1a1a;
   color: white;
-  /* El padding bottom extra es la clave para que la tarjeta se monte encima */
   padding: 20px 0 120px 0;
 }
 
@@ -146,7 +189,7 @@ const triggerDownload = () => {
 }
 
 .logo-icon {
-  color: #ff3b5c; /* Color estilo TikTok */
+  color: #ff3b5c;
 }
 
 .nav-links a {
@@ -169,11 +212,40 @@ const triggerDownload = () => {
 .search-card {
   background: white;
   max-width: 750px;
-  margin: -80px auto 40px auto; /* Margen negativo para subirla encima del header oscuro */
+  margin: -80px auto 40px auto;
   padding: 30px;
   border-radius: 8px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
   width: 90%;
+}
+
+/* --- TOGGLE DE PLATAFORMAS --- */
+.platform-toggle {
+  display: flex;
+  background-color: #f1f1f1;
+  border-radius: 8px;
+  margin-bottom: 25px;
+  padding: 4px;
+  width: 100%;
+}
+
+.toggle-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  background: transparent;
+  font-size: 15px;
+  font-weight: 600;
+  color: #666;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.toggle-btn.active {
+  background-color: white;
+  color: #1a1a1a;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
 
 .input-label {
@@ -204,29 +276,8 @@ const triggerDownload = () => {
   align-items: center;
 }
 
-.format-selectors {
-  display: flex;
-  gap: 5px;
-}
-
-.format-btn {
-  padding: 10px 20px;
-  background: white;
-  border: 1px solid #ddd;
-  color: #333;
-  border-radius: 4px;
-  cursor: pointer;
-  font-weight: 600;
-}
-
-.format-btn.active {
-  background: #1a1a1a;
-  color: white;
-  border-color: #1a1a1a;
-}
-
 .convert-btn {
-  background-color: #d9534f; /* Rojo estilo imagen */
+  background-color: #d9534f;
   color: white;
   border: none;
   padding: 12px 30px;
@@ -263,22 +314,6 @@ const triggerDownload = () => {
   color: #28a745;
   font-weight: 600;
   margin-bottom: 15px;
-}
-
-.download-now-btn {
-  background-color: #28a745;
-  color: white;
-  border: none;
-  padding: 15px 30px;
-  font-size: 18px;
-  font-weight: bold;
-  border-radius: 4px;
-  cursor: pointer;
-  width: 100%;
-}
-
-.download-now-btn:hover {
-  background-color: #218838;
 }
 
 /* --- SECCIÓN DE TEXTO --- */
